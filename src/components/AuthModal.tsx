@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Database, ShieldCheck, CheckCircle2, AlertCircle, Lock, Mail, UserCheck, Key, Eye, EyeOff } from 'lucide-react';
+import { Database, ShieldCheck, CheckCircle2, AlertCircle, Lock, Mail, Key, Eye, EyeOff } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 interface AuthModalProps {
@@ -9,6 +9,8 @@ interface AuthModalProps {
   onSuccess: (user: any) => void;
   isFullPage?: boolean;
 }
+
+const LOCAL_USERS_KEY = 'gym_app_registered_users';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFullPage = false }) => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -26,8 +28,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!email || !password) {
-      setErrorMsg('Please enter your email address and password.');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      setErrorMsg('Please enter both email address and password.');
       return;
     }
 
@@ -35,38 +38,106 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
 
     try {
       if (!isSupabaseConfigured) {
-        // Fallback local mock authentication
-        const mockUser = {
-          id: `local-user-${email.replace(/[^a-zA-Z0-9]/g, '') || 'guest'}`,
-          email,
-          user_metadata: { name: name || email.split('@')[0] },
-        };
-        if (rememberMe) {
-          localStorage.setItem('gym_app_remember_me', 'true');
-          localStorage.setItem('gym_app_saved_user', JSON.stringify(mockUser));
+        // Local Account Authentication Logic
+        const existingUsersRaw = localStorage.getItem(LOCAL_USERS_KEY);
+        const registeredUsers: Array<{ id: string; email: string; passwordHash: string; name: string }> = existingUsersRaw ? JSON.parse(existingUsersRaw) : [];
+
+        if (isSignUp) {
+          // Check if already registered
+          const alreadyExists = registeredUsers.some((u) => u.email === cleanEmail);
+          if (alreadyExists) {
+            throw new Error('An account with this email already exists. Please switch to Sign In.');
+          }
+
+          const newUser = {
+            id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            email: cleanEmail,
+            passwordHash: btoa(password),
+            name: name || cleanEmail.split('@')[0],
+          };
+
+          registeredUsers.push(newUser);
+          localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(registeredUsers));
+
+          const sessionUser = {
+            id: newUser.id,
+            email: newUser.email,
+            isGuest: false,
+            user_metadata: { name: newUser.name, full_name: newUser.name },
+          };
+
+          if (rememberMe) {
+            localStorage.setItem('gym_app_remember_me', 'true');
+            localStorage.setItem('gym_app_saved_user', JSON.stringify(sessionUser));
+          } else {
+            sessionStorage.setItem('gym_app_saved_user', JSON.stringify(sessionUser));
+          }
+
+          setSuccessMsg('Account registered successfully! Logging you in...');
+          setTimeout(() => {
+            onSuccess(sessionUser);
+            onClose();
+          }, 600);
         } else {
-          sessionStorage.setItem('gym_app_saved_user', JSON.stringify(mockUser));
+          // Sign In Check - Require prior registration
+          const foundUser = registeredUsers.find((u) => u.email === cleanEmail && u.passwordHash === btoa(password));
+          if (!foundUser) {
+            throw new Error('Account not found or password incorrect. Please register first by clicking "New here? Create a free account".');
+          }
+
+          const sessionUser = {
+            id: foundUser.id,
+            email: foundUser.email,
+            isGuest: false,
+            user_metadata: { name: foundUser.name, full_name: foundUser.name },
+          };
+
+          if (rememberMe) {
+            localStorage.setItem('gym_app_remember_me', 'true');
+            localStorage.setItem('gym_app_saved_user', JSON.stringify(sessionUser));
+          } else {
+            sessionStorage.setItem('gym_app_saved_user', JSON.stringify(sessionUser));
+          }
+
+          setSuccessMsg('Welcome back! Loading your profile...');
+          setTimeout(() => {
+            onSuccess(sessionUser);
+            onClose();
+          }, 500);
         }
-        setSuccessMsg('Signed in successfully (Local Mode)!');
-        setTimeout(() => {
-          onSuccess(mockUser);
-          onClose();
-        }, 500);
         return;
       }
 
+      // Supabase Authentication Mode
+      const displayName = name || cleanEmail.split('@')[0];
+
       if (isSignUp) {
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: cleanEmail,
           password,
           options: {
-            data: { name: name || email.split('@')[0] },
+            data: {
+              name: displayName,
+              full_name: displayName,
+            },
           },
         });
 
         if (error) throw error;
 
         if (data.user) {
+          // Explicitly upsert name into public.profiles table to guarantee name is never NULL in Supabase
+          try {
+            await supabase.from('profiles').upsert({
+              id: data.user.id,
+              email: cleanEmail,
+              name: displayName,
+              updated_at: new Date().toISOString(),
+            });
+          } catch (profileErr) {
+            console.log('Profile upsert notice:', profileErr);
+          }
+
           setSuccessMsg('Account created successfully! Signing you in...');
           if (rememberMe) {
             localStorage.setItem('gym_app_remember_me', 'true');
@@ -78,13 +149,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
-          email,
+          email: cleanEmail,
           password,
         });
 
         if (error) throw error;
 
         if (data.user) {
+          // Ensure profiles table has name updated
+          try {
+            await supabase.from('profiles').upsert({
+              id: data.user.id,
+              email: cleanEmail,
+              name: data.user.user_metadata?.name || data.user.user_metadata?.full_name || displayName,
+              updated_at: new Date().toISOString(),
+            });
+          } catch (profileErr) {
+            console.log('Profile upsert notice:', profileErr);
+          }
+
           if (rememberMe) {
             localStorage.setItem('gym_app_remember_me', 'true');
           } else {
@@ -98,7 +181,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
         }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Authentication failed. Please check your credentials.');
+      setErrorMsg(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
       setLoading(false);
     }
@@ -106,25 +189,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
 
   const handleGuestLogin = () => {
     const guestUser = {
-      id: 'guest-demo-user',
-      email: 'guest@gymanalytics.app',
-      user_metadata: { name: 'Guest Gym Rat' },
+      id: `guest-${Date.now()}`,
+      email: 'guest@session.temp',
+      isGuest: true,
+      user_metadata: { name: 'Guest User (Temporary)', full_name: 'Guest User (Temporary)' },
     };
-    if (rememberMe) {
-      localStorage.setItem('gym_app_remember_me', 'true');
-      localStorage.setItem('gym_app_saved_user', JSON.stringify(guestUser));
-    }
+    sessionStorage.setItem('gym_app_guest_session', JSON.stringify(guestUser));
     onSuccess(guestUser);
     onClose();
   };
 
   const containerClasses = isFullPage
-    ? 'min-h-screen flex items-center justify-center p-4 bg-zinc-950 bg-gradient-to-b from-zinc-900 to-zinc-950 text-zinc-100'
-    : 'fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4';
+    ? 'min-h-screen w-full flex items-center justify-center p-4 bg-zinc-950 bg-gradient-to-b from-zinc-900 to-zinc-950 text-zinc-100 overflow-x-hidden'
+    : 'fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-x-hidden';
 
   return (
     <div className={containerClasses}>
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6 transition-colors">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6 transition-colors mx-auto">
         
         {/* Top Header & Brand */}
         <div className="text-center space-y-2">
@@ -136,8 +217,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {isSignUp
-              ? 'Register to save and isolate your personal workout data'
-              : 'Sign in to access your workout history and analytics'}
+              ? 'Register first to save and isolate your workout history'
+              : 'Sign in with your registered email & password'}
           </p>
         </div>
 
@@ -145,13 +226,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
         {!isSupabaseConfigured && (
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 shrink-0 text-amber-500" />
-            <span>Running in Demo / Local Storage mode. Data will be isolated per account.</span>
+            <span>Local Mode: Registration required. Guest data resets on refresh.</span>
           </div>
         )}
 
         {/* Feedback Banners */}
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 leading-relaxed">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -174,6 +255,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
               </label>
               <input
                 type="text"
+                required
                 placeholder="e.g. Alex Rivera"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -271,7 +353,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
               onClick={handleGuestLogin}
               className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 font-medium hover:underline text-[11px]"
             >
-              Continue as Guest / Offline Rat
+              Continue as Guest (Data reset on refresh)
             </button>
           </div>
         </div>

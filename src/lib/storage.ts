@@ -76,11 +76,11 @@ const STORAGE_KEYS = {
   USER_PROFILE: 'gym_analytics_profile',
 };
 
-// Initial Seed Workouts to showcase historical comparisons immediately
+// Initial Seed Workouts for Guest / Demo showcase
 const SEED_WORKOUTS: Workout[] = [
   {
     id: 'w-1',
-    userId: 'user-demo',
+    userId: 'guest-demo',
     categoryId: 'cat-1',
     categoryName: 'Chest & Triceps',
     date: '2026-08-03',
@@ -98,7 +98,7 @@ const SEED_WORKOUTS: Workout[] = [
   },
   {
     id: 'w-2',
-    userId: 'user-demo',
+    userId: 'guest-demo',
     categoryId: 'cat-2',
     categoryName: 'Back & Biceps',
     date: '2026-08-05',
@@ -112,35 +112,29 @@ const SEED_WORKOUTS: Workout[] = [
     ],
     createdAt: '2026-08-05T18:35:00.000Z',
   },
-  {
-    id: 'w-3',
-    userId: 'user-demo',
-    categoryId: 'cat-1',
-    categoryName: 'Chest & Triceps',
-    date: '2026-08-08',
-    startTime: '2026-08-08T09:00:00.000Z',
-    endTime: '2026-08-08T10:20:00.000Z',
-    durationSec: 4800, // 1h 20m
-    sets: [
-      { id: 's-9', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 1, weight: 65, unit: 'kg', reps: 12, isCompleted: true },
-      { id: 's-10', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 2, weight: 75, unit: 'kg', reps: 10, isCompleted: true },
-      { id: 's-11', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 3, weight: 80, unit: 'kg', reps: 8, isCompleted: true },
-      { id: 's-12', workoutId: 'w-3', exerciseId: 'ex-3', exerciseName: 'Push Ups', setNumber: 1, weight: null, unit: 'kg', reps: 25, isCompleted: true },
-    ],
-    createdAt: '2026-08-08T10:20:00.000Z',
-  },
 ];
+
+const isGuestUser = (userId?: string) => {
+  return !userId || userId.startsWith('guest');
+};
+
+const getStorageEngine = (userId?: string) => {
+  if (typeof window === 'undefined') return null;
+  // Guest sessions use sessionStorage so data is lost on page refresh / tab close
+  return isGuestUser(userId) ? sessionStorage : localStorage;
+};
 
 const getUserKey = (baseKey: string, userId?: string) => {
   return userId ? `${baseKey}_${userId}` : baseKey;
 };
 
 export const getStoredCategories = (userId?: string): Category[] => {
-  if (typeof window === 'undefined') return DEFAULT_CATEGORIES;
+  const engine = getStorageEngine(userId);
+  if (!engine) return DEFAULT_CATEGORIES;
   const key = getUserKey(STORAGE_KEYS.CATEGORIES, userId);
-  const raw = localStorage.getItem(key);
+  const raw = engine.getItem(key);
   if (!raw) {
-    localStorage.setItem(key, JSON.stringify(DEFAULT_CATEGORIES));
+    engine.setItem(key, JSON.stringify(DEFAULT_CATEGORIES));
     return DEFAULT_CATEGORIES;
   }
   return JSON.parse(raw);
@@ -148,6 +142,7 @@ export const getStoredCategories = (userId?: string): Category[] => {
 
 export const saveCategory = (newCatName: string, userId?: string): Category => {
   const categories = getStoredCategories(userId);
+  const engine = getStorageEngine(userId);
   const key = getUserKey(STORAGE_KEYS.CATEGORIES, userId);
   const newCat: Category = {
     id: `cat-custom-${Date.now()}`,
@@ -156,16 +151,17 @@ export const saveCategory = (newCatName: string, userId?: string): Category => {
     createdAt: new Date().toISOString(),
   };
   const updated = [...categories, newCat];
-  localStorage.setItem(key, JSON.stringify(updated));
+  if (engine) engine.setItem(key, JSON.stringify(updated));
   return newCat;
 };
 
 export const getStoredExercises = (userId?: string): Exercise[] => {
-  if (typeof window === 'undefined') return DEFAULT_EXERCISES;
+  const engine = getStorageEngine(userId);
+  if (!engine) return DEFAULT_EXERCISES;
   const key = getUserKey(STORAGE_KEYS.EXERCISES, userId);
-  const raw = localStorage.getItem(key);
+  const raw = engine.getItem(key);
   if (!raw) {
-    localStorage.setItem(key, JSON.stringify(DEFAULT_EXERCISES));
+    engine.setItem(key, JSON.stringify(DEFAULT_EXERCISES));
     return DEFAULT_EXERCISES;
   }
   return JSON.parse(raw);
@@ -173,6 +169,7 @@ export const getStoredExercises = (userId?: string): Exercise[] => {
 
 export const saveExercise = (name: string, categoryId: string, isBodyweight: boolean, userId?: string): Exercise => {
   const exercises = getStoredExercises(userId);
+  const engine = getStorageEngine(userId);
   const key = getUserKey(STORAGE_KEYS.EXERCISES, userId);
   const newEx: Exercise = {
     id: `ex-custom-${Date.now()}`,
@@ -183,18 +180,19 @@ export const saveExercise = (name: string, categoryId: string, isBodyweight: boo
     createdAt: new Date().toISOString(),
   };
   const updated = [...exercises, newEx];
-  localStorage.setItem(key, JSON.stringify(updated));
+  if (engine) engine.setItem(key, JSON.stringify(updated));
   return newEx;
 };
 
 export const getStoredWorkouts = (userId?: string): Workout[] => {
-  if (typeof window === 'undefined') return SEED_WORKOUTS;
+  const engine = getStorageEngine(userId);
+  if (!engine) return [];
   const key = getUserKey(STORAGE_KEYS.WORKOUTS, userId);
-  const raw = localStorage.getItem(key);
+  const raw = engine.getItem(key);
   if (!raw) {
-    // Only give initial seed workouts to guest / demo users, not fresh new accounts
-    const initial = (!userId || userId.includes('guest') || userId.includes('demo')) ? SEED_WORKOUTS : [];
-    localStorage.setItem(key, JSON.stringify(initial));
+    // Guest gets initial demo workouts for current session, registered users start empty
+    const initial = isGuestUser(userId) ? SEED_WORKOUTS : [];
+    engine.setItem(key, JSON.stringify(initial));
     return initial;
   }
   return JSON.parse(raw);
@@ -202,6 +200,7 @@ export const getStoredWorkouts = (userId?: string): Workout[] => {
 
 export const saveWorkout = (workout: Workout, userId?: string): Workout[] => {
   const current = getStoredWorkouts(userId);
+  const engine = getStorageEngine(userId);
   const key = getUserKey(STORAGE_KEYS.WORKOUTS, userId);
   const existingIdx = current.findIndex((w) => w.id === workout.id);
   let updated: Workout[];
@@ -211,15 +210,16 @@ export const saveWorkout = (workout: Workout, userId?: string): Workout[] => {
   } else {
     updated = [workout, ...current];
   }
-  localStorage.setItem(key, JSON.stringify(updated));
+  if (engine) engine.setItem(key, JSON.stringify(updated));
   return updated;
 };
 
 export const deleteWorkout = (workoutId: string, userId?: string): Workout[] => {
   const current = getStoredWorkouts(userId);
+  const engine = getStorageEngine(userId);
   const key = getUserKey(STORAGE_KEYS.WORKOUTS, userId);
   const updated = current.filter((w) => w.id !== workoutId);
-  localStorage.setItem(key, JSON.stringify(updated));
+  if (engine) engine.setItem(key, JSON.stringify(updated));
   return updated;
 };
 

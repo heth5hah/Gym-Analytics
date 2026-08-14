@@ -10,7 +10,6 @@ import {
   Moon,
   Plus,
   Calendar as CalendarIcon,
-  CheckCircle2,
   Trash2,
 } from 'lucide-react';
 import { Workout } from '@/lib/types';
@@ -67,19 +66,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       
       {/* Month Selector & Summary Metrics Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900/60 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900/60 p-4 sm:p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
         
         {/* Month Navigation */}
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 font-bold flex items-center justify-center">
+          <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 font-bold flex items-center justify-center shrink-0">
             <CalendarIcon className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-extrabold text-zinc-900 dark:text-white">
+              <h2 className="text-lg sm:text-xl font-extrabold text-zinc-900 dark:text-white">
                 {MONTH_NAMES[currentMonth]} {currentYear}
               </h2>
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
@@ -99,7 +98,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </button>
               </div>
             </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden xs:block">
               Select any date to view or log a workout session
             </p>
           </div>
@@ -109,35 +108,35 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           
           {/* Total Monthly Hours */}
-          <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-              <Clock className="w-3.5 h-3.5 text-cyan-500" />
-              Hours Spent
+          <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 sm:p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-center text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-500 shrink-0" />
+              <span>Hours</span>
             </div>
-            <p className="text-sm sm:text-base font-black text-zinc-900 dark:text-white mt-1">
+            <p className="text-xs sm:text-base font-black text-zinc-900 dark:text-white mt-0.5">
               {stats.totalHours}h {stats.totalMinutes}m
             </p>
           </div>
 
           {/* Gym Days Attended */}
-          <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-              <Flame className="w-3.5 h-3.5 text-amber-500" />
-              Gym Days
+          <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 sm:p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-center text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+              <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 shrink-0" />
+              <span>Gym Days</span>
             </div>
-            <p className="text-sm sm:text-base font-black text-zinc-900 dark:text-white mt-1">
-              {stats.totalGymDays} <span className="text-xs font-normal text-zinc-400">/ {stats.daysInMonth}</span>
+            <p className="text-xs sm:text-base font-black text-zinc-900 dark:text-white mt-0.5">
+              {stats.totalGymDays} <span className="text-[10px] sm:text-xs font-normal text-zinc-400">/ {stats.daysInMonth}</span>
             </p>
           </div>
 
           {/* Rest Days */}
-          <div className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-center">
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-              <Moon className="w-3.5 h-3.5 text-indigo-400" />
-              Rest Days
+          <div className="bg-zinc-50 dark:bg-zinc-950 p-2.5 sm:p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 flex flex-col justify-center text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+              <Moon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-400 shrink-0" />
+              <span>Rest Days</span>
             </div>
-            <p className="text-sm sm:text-base font-black text-zinc-900 dark:text-white mt-1">
-              {stats.totalRestDays} <span className="text-xs font-normal text-zinc-400">days</span>
+            <p className="text-xs sm:text-base font-black text-zinc-900 dark:text-white mt-0.5">
+              {stats.totalRestDays} <span className="text-[10px] sm:text-xs font-normal text-zinc-400">d</span>
             </p>
           </div>
 
@@ -145,10 +144,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Calendar Grid */}
-      <div className="bg-white dark:bg-zinc-900/60 p-4 sm:p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+      <div className="bg-white dark:bg-zinc-900/60 p-2.5 sm:p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm w-full overflow-hidden">
         
         {/* Days of Week Header */}
-        <div className="grid grid-cols-7 text-center mb-3 text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+        <div className="grid grid-cols-7 text-center mb-2 text-[10px] sm:text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
           <div>Sun</div>
           <div>Mon</div>
           <div>Tue</div>
@@ -159,11 +158,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         {/* Days Matrix */}
-        <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           
           {/* Blank Offset Days */}
           {Array.from({ length: firstDayOfMonth }).map((_, idx) => (
-            <div key={`blank-${idx}`} className="h-20 sm:h-24 rounded-xl bg-zinc-50/40 dark:bg-zinc-950/20 opacity-30" />
+            <div key={`blank-${idx}`} className="h-14 sm:h-24 rounded-lg sm:rounded-xl bg-zinc-50/40 dark:bg-zinc-950/20 opacity-30" />
           ))}
 
           {/* Actual Month Days */}
@@ -179,7 +178,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div
                 key={`day-${dayNum}`}
                 onClick={() => onSelectDate(dateStr)}
-                className={`group relative h-20 sm:h-24 p-2 rounded-xl border transition-all flex flex-col justify-between cursor-pointer ${
+                className={`group relative h-14 sm:h-24 p-1 sm:p-2 rounded-lg sm:rounded-xl border transition-all flex flex-col justify-between cursor-pointer overflow-hidden ${
                   isToday
                     ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-500/5'
                     : hasWorkout
@@ -189,7 +188,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <span
-                    className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                    className={`text-[10px] sm:text-xs font-bold w-4 h-4 sm:w-6 sm:h-6 rounded-full flex items-center justify-center ${
                       isToday
                         ? 'bg-emerald-500 text-white'
                         : 'text-zinc-700 dark:text-zinc-300'
@@ -204,29 +203,29 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       e.stopPropagation();
                       onStartWorkoutForDate(dateStr);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 sm:p-1 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-opacity hidden xs:block"
                     title={`Start workout for ${dateStr}`}
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </button>
                 </div>
 
                 {/* Workout Category Badges or Rest Day Badge */}
-                <div className="space-y-1 overflow-hidden">
+                <div className="space-y-0.5 sm:space-y-1 overflow-hidden">
                   {hasWorkout ? (
                     dayWorkouts.map((w) => (
                       <div
                         key={w.id}
-                        className="truncate text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md bg-gradient-to-r from-emerald-500/15 to-cyan-500/15 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/20 flex items-center gap-1"
+                        className="truncate text-[8px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded bg-gradient-to-r from-emerald-500/15 to-cyan-500/15 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/20 flex items-center gap-0.5 sm:gap-1"
                       >
-                        <Dumbbell className="w-3 h-3 shrink-0" />
+                        <Dumbbell className="w-2.5 h-2.5 shrink-0 hidden xs:inline" />
                         <span className="truncate">{w.categoryName}</span>
                       </div>
                     ))
                   ) : (
-                    <div className="text-[10px] text-zinc-400 dark:text-zinc-600 flex items-center gap-1 italic opacity-75">
-                      <Moon className="w-2.5 h-2.5" />
-                      <span>Rest Day</span>
+                    <div className="text-[8px] sm:text-[10px] text-zinc-400 dark:text-zinc-600 flex items-center gap-0.5 sm:gap-1 italic opacity-75">
+                      <Moon className="w-2 h-2 sm:w-2.5 sm:h-2.5 shrink-0" />
+                      <span className="hidden xs:inline">Rest</span>
                     </div>
                   )}
                 </div>
@@ -238,16 +237,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Monthly Workouts Log List */}
-      <div className="bg-white dark:bg-zinc-900/60 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
-        <h3 className="font-extrabold text-base text-zinc-900 dark:text-white flex items-center justify-between">
+      <div className="bg-white dark:bg-zinc-900/60 p-4 sm:p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 w-full">
+        <h3 className="font-extrabold text-sm sm:text-base text-zinc-900 dark:text-white flex items-center justify-between">
           <span>{MONTH_NAMES[currentMonth]} Gym Sessions ({stats.monthlyWorkouts.length})</span>
-          <span className="text-xs text-zinc-500 dark:text-zinc-400 font-normal">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 font-normal hidden sm:inline">
             Click any session to review
           </span>
         </h3>
 
         {stats.monthlyWorkouts.length === 0 ? (
-          <div className="text-center py-10 text-zinc-400 dark:text-zinc-500 text-sm border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+          <div className="text-center py-8 text-zinc-400 dark:text-zinc-500 text-xs sm:text-sm border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
             <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-50 text-emerald-500" />
             No workout sessions logged for {MONTH_NAMES[currentMonth]} {currentYear} yet.
             <div className="mt-3">

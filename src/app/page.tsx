@@ -54,12 +54,22 @@ export default function Home() {
           }
         }
 
-        // Check Local Storage Saved Credentials ("Remember Me")
-        const savedUserStr = localStorage.getItem('gym_app_saved_user') || sessionStorage.getItem('gym_app_saved_user');
-        if (savedUserStr) {
-          const parsed = JSON.parse(savedUserStr);
+        // Check Persistent Local Registered User ("Remember Me")
+        const persistentUser = localStorage.getItem('gym_app_saved_user');
+        if (persistentUser) {
+          const parsed = JSON.parse(persistentUser);
           setCurrentUser(parsed);
           refreshUserData(parsed.id);
+          setIsAuthInitializing(false);
+          return;
+        }
+
+        // Check Guest Temporary Session
+        const guestSession = sessionStorage.getItem('gym_app_guest_session');
+        if (guestSession) {
+          const parsedGuest = JSON.parse(guestSession);
+          setCurrentUser(parsedGuest);
+          refreshUserData(parsedGuest.id);
         }
       } catch (err) {
         console.error('Session init error:', err);
@@ -106,6 +116,7 @@ export default function Home() {
       }
       localStorage.removeItem('gym_app_saved_user');
       localStorage.removeItem('gym_app_remember_me');
+      sessionStorage.removeItem('gym_app_guest_session');
       sessionStorage.removeItem('gym_app_saved_user');
       setCurrentUser(null);
       setWorkouts([]);
@@ -136,7 +147,7 @@ export default function Home() {
   // Loading Screen
   if (isAuthInitializing) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white p-4">
+      <div className="min-h-screen w-full bg-zinc-950 flex items-center justify-center text-white p-4">
         <div className="text-center space-y-3">
           <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-sm font-semibold text-zinc-400">Loading GymAnalytics PRO...</p>
@@ -157,7 +168,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col pb-20 md:pb-8">
+    <div className="min-h-screen w-full flex flex-col pb-20 md:pb-8 overflow-x-hidden">
       
       {/* Top Navbar Header */}
       <Navbar
@@ -172,7 +183,7 @@ export default function Home() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
         
         {activeTab === 'dashboard' && (
           <CalendarView
