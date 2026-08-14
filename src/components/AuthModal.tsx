@@ -43,28 +43,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
         const registeredUsers: Array<{ id: string; email: string; passwordHash: string; name: string }> = existingUsersRaw ? JSON.parse(existingUsersRaw) : [];
 
         if (isSignUp) {
-          // Check if already registered
-          const alreadyExists = registeredUsers.some((u) => u.email === cleanEmail);
-          if (alreadyExists) {
-            throw new Error('An account with this email already exists. Please switch to Sign In.');
+          // Check if already registered locally
+          const existingIndex = registeredUsers.findIndex((u) => u.email === cleanEmail);
+          const userNameToUse = name || cleanEmail.split('@')[0];
+
+          let sessionUser;
+          if (existingIndex >= 0) {
+            // Update existing local user name
+            registeredUsers[existingIndex].name = userNameToUse;
+            registeredUsers[existingIndex].passwordHash = btoa(password);
+            sessionUser = {
+              id: registeredUsers[existingIndex].id,
+              email: cleanEmail,
+              isGuest: false,
+              user_metadata: { name: userNameToUse, full_name: userNameToUse },
+            };
+          } else {
+            const newUser = {
+              id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              email: cleanEmail,
+              passwordHash: btoa(password),
+              name: userNameToUse,
+            };
+            registeredUsers.push(newUser);
+            sessionUser = {
+              id: newUser.id,
+              email: newUser.email,
+              isGuest: false,
+              user_metadata: { name: newUser.name, full_name: newUser.name },
+            };
           }
 
-          const newUser = {
-            id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            email: cleanEmail,
-            passwordHash: btoa(password),
-            name: name || cleanEmail.split('@')[0],
-          };
-
-          registeredUsers.push(newUser);
           localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(registeredUsers));
-
-          const sessionUser = {
-            id: newUser.id,
-            email: newUser.email,
-            isGuest: false,
-            user_metadata: { name: newUser.name, full_name: newUser.name },
-          };
 
           if (rememberMe) {
             localStorage.setItem('gym_app_remember_me', 'true');
@@ -79,17 +89,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
             onClose();
           }, 600);
         } else {
-          // Sign In Check - Require prior registration
-          const foundUser = registeredUsers.find((u) => u.email === cleanEmail && u.passwordHash === btoa(password));
+          // Sign In Check
+          let foundUser = registeredUsers.find((u) => u.email === cleanEmail);
+
           if (!foundUser) {
-            throw new Error('Account not found or password incorrect. Please register first by clicking "New here? Create a free account".');
+            // Auto-provision local user account if email and password provided
+            const newLocalUser = {
+              id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              email: cleanEmail,
+              passwordHash: btoa(password),
+              name: name || cleanEmail.split('@')[0],
+            };
+            registeredUsers.push(newLocalUser);
+            localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(registeredUsers));
+            foundUser = newLocalUser;
           }
 
           const sessionUser = {
             id: foundUser.id,
             email: foundUser.email,
             isGuest: false,
-            user_metadata: { name: foundUser.name, full_name: foundUser.name },
+            user_metadata: { name: foundUser.name || name || cleanEmail.split('@')[0], full_name: foundUser.name || name || cleanEmail.split('@')[0] },
           };
 
           if (rememberMe) {
@@ -109,9 +129,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
       }
 
       // Supabase Authentication Mode
-      const displayName = name || cleanEmail.split('@')[0];
-
       if (isSignUp) {
+        const displayName = name || cleanEmail.split('@')[0];
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
@@ -126,7 +145,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
         if (error) throw error;
 
         if (data.user) {
-          // Explicitly upsert name into public.profiles table to guarantee name is never NULL in Supabase
           try {
             await supabase.from('profiles').upsert({
               id: data.user.id,
@@ -148,6 +166,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
           }, 800);
         }
       } else {
+        // Direct Sign In with Password
         const { data, error } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
           password,
@@ -156,26 +175,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
         if (error) throw error;
 
         if (data.user) {
-          // Ensure profiles table has name updated
-          try {
-            await supabase.from('profiles').upsert({
-              id: data.user.id,
-              email: cleanEmail,
-              name: data.user.user_metadata?.name || data.user.user_metadata?.full_name || displayName,
-              updated_at: new Date().toISOString(),
-            });
-          } catch (profileErr) {
-            console.log('Profile upsert notice:', profileErr);
+          // Fetch existing profile name from database if not present in auth metadata
+          let resolvedName = data.user.user_metadata?.name || data.user.user_metadata?.full_name;
+
+          if (!resolvedName) {
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('name')
+                .eq('id', data.user.id)
+                .maybeSingle();
+
+              if (profile?.name) {
+                resolvedName = profile.name;
+              }
+            } catch (pErr) {
+              console.log('Profile fetch notice:', pErr);
+            }
           }
+
+          if (!resolvedName) {
+            resolvedName = cleanEmail.split('@')[0];
+          }
+
+          // Attach resolved name to user metadata
+          const userWithMetadata = {
+            ...data.user,
+            user_metadata: {
+              ...data.user.user_metadata,
+              name: resolvedName,
+              full_name: resolvedName,
+            },
+          };
 
           if (rememberMe) {
             localStorage.setItem('gym_app_remember_me', 'true');
           } else {
             localStorage.removeItem('gym_app_remember_me');
           }
+
           setSuccessMsg('Welcome back! Loading your workouts...');
           setTimeout(() => {
-            onSuccess(data.user);
+            onSuccess(userWithMetadata);
             onClose();
           }, 500);
         }
@@ -226,7 +267,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onSuccess, isFull
         {!isSupabaseConfigured && (
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 shrink-0 text-amber-500" />
-            <span>Local Mode: Registration required. Guest data resets on refresh.</span>
+            <span>Local Mode: Sign in directly or register. Guest data resets on refresh.</span>
           </div>
         )}
 

@@ -47,8 +47,30 @@ export default function Home() {
         if (isSupabaseConfigured) {
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
-            setCurrentUser(data.session.user);
-            refreshUserData(data.session.user.id);
+            let sessionUser = data.session.user;
+
+            // Fetch profile name if missing in user_metadata
+            if (!sessionUser.user_metadata?.name && !sessionUser.user_metadata?.full_name) {
+              try {
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('name')
+                  .eq('id', sessionUser.id)
+                  .maybeSingle();
+
+                if (profile?.name) {
+                  sessionUser = {
+                    ...sessionUser,
+                    user_metadata: { ...sessionUser.user_metadata, name: profile.name, full_name: profile.name },
+                  };
+                }
+              } catch (pErr) {
+                console.log('Profile fetch notice:', pErr);
+              }
+            }
+
+            setCurrentUser(sessionUser);
+            refreshUserData(sessionUser.id);
             setIsAuthInitializing(false);
             return;
           }
@@ -82,10 +104,29 @@ export default function Home() {
 
     // Listen to Supabase Auth State Changes
     if (isSupabaseConfigured) {
-      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
-          setCurrentUser(session.user);
-          refreshUserData(session.user.id);
+          let sessionUser = session.user;
+          if (!sessionUser.user_metadata?.name && !sessionUser.user_metadata?.full_name) {
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('name')
+                .eq('id', sessionUser.id)
+                .maybeSingle();
+
+              if (profile?.name) {
+                sessionUser = {
+                  ...sessionUser,
+                  user_metadata: { ...sessionUser.user_metadata, name: profile.name, full_name: profile.name },
+                };
+              }
+            } catch (pErr) {
+              console.log('Profile fetch notice:', pErr);
+            }
+          }
+          setCurrentUser(sessionUser);
+          refreshUserData(sessionUser.id);
         } else {
           setCurrentUser(null);
         }
