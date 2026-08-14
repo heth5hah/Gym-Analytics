@@ -122,74 +122,87 @@ const SEED_WORKOUTS: Workout[] = [
     endTime: '2026-08-08T10:20:00.000Z',
     durationSec: 4800, // 1h 20m
     sets: [
-      { id: 's-9', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 1, weight: 65, unit: 'kg', reps: 12, isCompleted: true }, // 65kg = 143 lbs
-      { id: 's-10', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 2, weight: 75, unit: 'kg', reps: 10, isCompleted: true }, // 75kg = 165 lbs
-      { id: 's-11', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 3, weight: 80, unit: 'kg', reps: 8, isCompleted: true }, // 80kg = 176 lbs (+6.7% vs 165 lbs!)
+      { id: 's-9', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 1, weight: 65, unit: 'kg', reps: 12, isCompleted: true },
+      { id: 's-10', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 2, weight: 75, unit: 'kg', reps: 10, isCompleted: true },
+      { id: 's-11', workoutId: 'w-3', exerciseId: 'ex-1', exerciseName: 'Barbell Bench Press', setNumber: 3, weight: 80, unit: 'kg', reps: 8, isCompleted: true },
       { id: 's-12', workoutId: 'w-3', exerciseId: 'ex-3', exerciseName: 'Push Ups', setNumber: 1, weight: null, unit: 'kg', reps: 25, isCompleted: true },
     ],
     createdAt: '2026-08-08T10:20:00.000Z',
   },
 ];
 
-export const getStoredCategories = (): Category[] => {
+const getUserKey = (baseKey: string, userId?: string) => {
+  return userId ? `${baseKey}_${userId}` : baseKey;
+};
+
+export const getStoredCategories = (userId?: string): Category[] => {
   if (typeof window === 'undefined') return DEFAULT_CATEGORIES;
-  const raw = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+  const key = getUserKey(STORAGE_KEYS.CATEGORIES, userId);
+  const raw = localStorage.getItem(key);
   if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(DEFAULT_CATEGORIES));
+    localStorage.setItem(key, JSON.stringify(DEFAULT_CATEGORIES));
     return DEFAULT_CATEGORIES;
   }
   return JSON.parse(raw);
 };
 
-export const saveCategory = (newCatName: string): Category => {
-  const categories = getStoredCategories();
+export const saveCategory = (newCatName: string, userId?: string): Category => {
+  const categories = getStoredCategories(userId);
+  const key = getUserKey(STORAGE_KEYS.CATEGORIES, userId);
   const newCat: Category = {
     id: `cat-custom-${Date.now()}`,
     name: newCatName,
-    userId: 'user-custom',
+    userId: userId || 'user-custom',
     createdAt: new Date().toISOString(),
   };
   const updated = [...categories, newCat];
-  localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(updated));
+  localStorage.setItem(key, JSON.stringify(updated));
   return newCat;
 };
 
-export const getStoredExercises = (): Exercise[] => {
+export const getStoredExercises = (userId?: string): Exercise[] => {
   if (typeof window === 'undefined') return DEFAULT_EXERCISES;
-  const raw = localStorage.getItem(STORAGE_KEYS.EXERCISES);
+  const key = getUserKey(STORAGE_KEYS.EXERCISES, userId);
+  const raw = localStorage.getItem(key);
   if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.EXERCISES, JSON.stringify(DEFAULT_EXERCISES));
+    localStorage.setItem(key, JSON.stringify(DEFAULT_EXERCISES));
     return DEFAULT_EXERCISES;
   }
   return JSON.parse(raw);
 };
 
-export const saveExercise = (name: string, categoryId: string, isBodyweight: boolean): Exercise => {
-  const exercises = getStoredExercises();
+export const saveExercise = (name: string, categoryId: string, isBodyweight: boolean, userId?: string): Exercise => {
+  const exercises = getStoredExercises(userId);
+  const key = getUserKey(STORAGE_KEYS.EXERCISES, userId);
   const newEx: Exercise = {
     id: `ex-custom-${Date.now()}`,
     name,
     categoryId,
     isBodyweight,
+    userId: userId || 'user-custom',
     createdAt: new Date().toISOString(),
   };
   const updated = [...exercises, newEx];
-  localStorage.setItem(STORAGE_KEYS.EXERCISES, JSON.stringify(updated));
+  localStorage.setItem(key, JSON.stringify(updated));
   return newEx;
 };
 
-export const getStoredWorkouts = (): Workout[] => {
+export const getStoredWorkouts = (userId?: string): Workout[] => {
   if (typeof window === 'undefined') return SEED_WORKOUTS;
-  const raw = localStorage.getItem(STORAGE_KEYS.WORKOUTS);
+  const key = getUserKey(STORAGE_KEYS.WORKOUTS, userId);
+  const raw = localStorage.getItem(key);
   if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.WORKOUTS, JSON.stringify(SEED_WORKOUTS));
-    return SEED_WORKOUTS;
+    // Only give initial seed workouts to guest / demo users, not fresh new accounts
+    const initial = (!userId || userId.includes('guest') || userId.includes('demo')) ? SEED_WORKOUTS : [];
+    localStorage.setItem(key, JSON.stringify(initial));
+    return initial;
   }
   return JSON.parse(raw);
 };
 
-export const saveWorkout = (workout: Workout): Workout[] => {
-  const current = getStoredWorkouts();
+export const saveWorkout = (workout: Workout, userId?: string): Workout[] => {
+  const current = getStoredWorkouts(userId);
+  const key = getUserKey(STORAGE_KEYS.WORKOUTS, userId);
   const existingIdx = current.findIndex((w) => w.id === workout.id);
   let updated: Workout[];
   if (existingIdx >= 0) {
@@ -198,14 +211,15 @@ export const saveWorkout = (workout: Workout): Workout[] => {
   } else {
     updated = [workout, ...current];
   }
-  localStorage.setItem(STORAGE_KEYS.WORKOUTS, JSON.stringify(updated));
+  localStorage.setItem(key, JSON.stringify(updated));
   return updated;
 };
 
-export const deleteWorkout = (workoutId: string): Workout[] => {
-  const current = getStoredWorkouts();
+export const deleteWorkout = (workoutId: string, userId?: string): Workout[] => {
+  const current = getStoredWorkouts(userId);
+  const key = getUserKey(STORAGE_KEYS.WORKOUTS, userId);
   const updated = current.filter((w) => w.id !== workoutId);
-  localStorage.setItem(STORAGE_KEYS.WORKOUTS, JSON.stringify(updated));
+  localStorage.setItem(key, JSON.stringify(updated));
   return updated;
 };
 

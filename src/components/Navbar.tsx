@@ -11,6 +11,7 @@ import {
   Moon,
   Database,
   User as UserIcon,
+  LogOut,
 } from 'lucide-react';
 import { UnitType } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -22,6 +23,8 @@ interface NavbarProps {
   preferredUnit: UnitType;
   setPreferredUnit: (unit: UnitType) => void;
   onOpenAuth: () => void;
+  currentUser?: any;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -31,6 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   preferredUnit,
   setPreferredUnit,
   onOpenAuth,
+  currentUser,
+  onLogout,
 }) => {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -38,6 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const userName = currentUser?.user_metadata?.name || currentUser?.email?.split('@')[0] || 'Member';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md transition-colors">
@@ -119,19 +126,42 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Supabase / Auth Indicator */}
-          <button
-            onClick={onOpenAuth}
-            className={`p-2 rounded-xl border flex items-center gap-1.5 text-xs font-medium transition-all ${
-              isSupabaseConfigured
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400'
-            }`}
-            title={isSupabaseConfigured ? 'Supabase Connected' : 'Setup Supabase Connection'}
-          >
-            <Database className="w-4 h-4" />
-            <UserIcon className="w-3.5 h-3.5 hidden sm:inline" />
-          </button>
+          {/* User Account / Auth Indicator */}
+          {currentUser ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onOpenAuth}
+                className="px-2.5 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-1.5 truncate max-w-[130px]"
+                title={`Logged in as ${currentUser.email}`}
+              >
+                <UserIcon className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{userName}</span>
+              </button>
+
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuth}
+              className={`p-2 rounded-xl border flex items-center gap-1.5 text-xs font-medium transition-all ${
+                isSupabaseConfigured
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400'
+              }`}
+              title="Sign In / Manage Account"
+            >
+              <Database className="w-4 h-4" />
+              <UserIcon className="w-3.5 h-3.5 hidden sm:inline" />
+            </button>
+          )}
         </div>
 
       </div>

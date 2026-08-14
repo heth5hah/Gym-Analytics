@@ -7,6 +7,7 @@ import { CalendarView } from '@/components/CalendarView';
 import { AnalyticsView } from '@/components/AnalyticsView';
 import { ActiveWorkoutModal } from '@/components/ActiveWorkoutModal';
 import { AuthModal } from '@/components/AuthModal';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
   Category,
   Exercise,
@@ -25,7 +26,11 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'history'>('dashboard');
   const [preferredUnit, setPreferredUnit] = useState<UnitType>('kg');
 
-  // Loaded Data
+  // User State
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [isAuthInitializing, setIsAuthInitializing] = useState(true);
+
+  // Loaded Data (Scoped per User)
   const [categories, setCategories] = useState<Category[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
@@ -35,15 +40,76 @@ export default function Home() {
   const [selectedWorkoutDate, setSelectedWorkoutDate] = useState<string | undefined>();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Load Data on Mount
+  // Check Active Session on Mount
   useEffect(() => {
-    refreshData();
+    const initSession = async () => {
+      try {
+        if (isSupabaseConfigured) {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session?.user) {
+            setCurrentUser(data.session.user);
+            refreshUserData(data.session.user.id);
+            setIsAuthInitializing(false);
+            return;
+          }
+        }
+
+        // Check Local Storage Saved Credentials ("Remember Me")
+        const savedUserStr = localStorage.getItem('gym_app_saved_user') || sessionStorage.getItem('gym_app_saved_user');
+        if (savedUserStr) {
+          const parsed = JSON.parse(savedUserStr);
+          setCurrentUser(parsed);
+          refreshUserData(parsed.id);
+        }
+      } catch (err) {
+        console.error('Session init error:', err);
+      } finally {
+        setIsAuthInitializing(false);
+      }
+    };
+
+    initSession();
+
+    // Listen to Supabase Auth State Changes
+    if (isSupabaseConfigured) {
+      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setCurrentUser(session.user);
+          refreshUserData(session.user.id);
+        } else {
+          setCurrentUser(null);
+        }
+      });
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    }
   }, []);
 
-  const refreshData = () => {
-    setCategories(getStoredCategories());
-    setExercises(getStoredExercises());
-    setWorkouts(getStoredWorkouts());
+  const refreshUserData = (userId?: string) => {
+    const uId = userId || currentUser?.id;
+    setCategories(getStoredCategories(uId));
+    setExercises(getStoredExercises(uId));
+    setWorkouts(getStoredWorkouts(uId));
+  };
+
+  const handleAuthSuccess = (user: any) => {
+    setCurrentUser(user);
+    refreshUserData(user.id);
+    setIsAuthModalOpen(false);
+  };
+
+  const handleLogout = async () => {
+    if (confirm('Are you sure you want to log out?')) {
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
+      localStorage.removeItem('gym_app_saved_user');
+      localStorage.removeItem('gym_app_remember_me');
+      sessionStorage.removeItem('gym_app_saved_user');
+      setCurrentUser(null);
+      setWorkouts([]);
+    }
   };
 
   const handleStartWorkout = (dateStr?: string) => {
@@ -52,16 +118,43 @@ export default function Home() {
   };
 
   const handleSaveWorkout = (newWorkout: Workout) => {
-    const updated = saveWorkout(newWorkout);
+    const workoutWithUser = {
+      ...newWorkout,
+      userId: currentUser?.id || 'user-current',
+    };
+    const updated = saveWorkout(workoutWithUser, currentUser?.id);
     setWorkouts(updated);
   };
 
   const handleDeleteWorkout = (workoutId: string) => {
     if (confirm('Are you sure you want to delete this workout log?')) {
-      const updated = deleteWorkout(workoutId);
+      const updated = deleteWorkout(workoutId, currentUser?.id);
       setWorkouts(updated);
     }
   };
+
+  // Loading Screen
+  if (isAuthInitializing) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white p-4">
+        <div className="text-center space-y-3">
+          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-semibold text-zinc-400">Loading GymAnalytics PRO...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // MANDATORY AUTH WALL: If not logged in, display full-screen Login Screen
+  if (!currentUser) {
+    return (
+      <AuthModal
+        isFullPage={true}
+        onClose={() => {}}
+        onSuccess={handleAuthSuccess}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col pb-20 md:pb-8">
@@ -74,6 +167,8 @@ export default function Home() {
         preferredUnit={preferredUnit}
         setPreferredUnit={setPreferredUnit}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Container */}
@@ -114,14 +209,17 @@ export default function Home() {
           preferredUnit={preferredUnit}
           onClose={() => setIsWorkoutModalOpen(false)}
           onSaveWorkout={handleSaveWorkout}
-          onRefreshCategories={refreshData}
-          onRefreshExercises={refreshData}
+          onRefreshCategories={() => refreshUserData(currentUser?.id)}
+          onRefreshExercises={() => refreshUserData(currentUser?.id)}
         />
       )}
 
-      {/* Supabase / Auth Settings Modal */}
+      {/* Account Settings / User Modal */}
       {isAuthModalOpen && (
-        <AuthModal onClose={() => setIsAuthModalOpen(false)} />
+        <AuthModal
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={handleAuthSuccess}
+        />
       )}
 
     </div>
