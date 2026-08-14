@@ -14,8 +14,6 @@ import {
   Save,
   ChevronRight,
   ChevronLeft,
-  Flame,
-  PlusCircle,
 } from 'lucide-react';
 import { Category, Exercise, Workout, WorkoutSet, UnitType } from '@/lib/types';
 import { saveCategory, saveExercise } from '@/lib/storage';
@@ -25,6 +23,7 @@ interface ActiveWorkoutModalProps {
   categories: Category[];
   exercises: Exercise[];
   preferredUnit: UnitType;
+  currentUser?: any;
   onClose: () => void;
   onSaveWorkout: (workout: Workout) => void;
   onRefreshCategories: () => void;
@@ -36,6 +35,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   categories,
   exercises,
   preferredUnit,
+  currentUser,
   onClose,
   onSaveWorkout,
   onRefreshCategories,
@@ -67,7 +67,17 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   const [localExercises, setLocalExercises] = useState<Exercise[]>(exercises);
 
   useEffect(() => {
-    setLocalExercises(exercises);
+    // Merge incoming exercises with any custom ones added locally during this session
+    setLocalExercises((prev) => {
+      const mergedMap = new Map<string, Exercise>();
+      exercises.forEach((ex) => mergedMap.set(ex.id, ex));
+      prev.forEach((ex) => {
+        if (!mergedMap.has(ex.id)) {
+          mergedMap.set(ex.id, ex);
+        }
+      });
+      return Array.from(mergedMap.values());
+    });
   }, [exercises]);
 
   // Set Logs
@@ -107,7 +117,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   const handleCreateCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    const created = saveCategory(newCatName.trim());
+    const created = saveCategory(newCatName.trim(), currentUser?.id);
     onRefreshCategories();
     setSelectedCategory(created);
     setNewCatName('');
@@ -123,11 +133,16 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
     const createdEx = saveExercise(
       newExName.trim(),
       selectedCategory.id,
-      newExIsBodyweight
+      newExIsBodyweight,
+      currentUser?.id
     );
 
-    // Update local state instantly
-    setLocalExercises((prev) => [...prev, createdEx]);
+    // Update local exercises state instantly
+    setLocalExercises((prev) => {
+      const exists = prev.some((ex) => ex.id === createdEx.id);
+      return exists ? prev : [...prev, createdEx];
+    });
+
     onRefreshExercises();
 
     // Auto-add first set for this newly created exercise
@@ -188,7 +203,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
     const endTime = new Date().toISOString();
     const workoutObj: Workout = {
       id: `workout-${Date.now()}`,
-      userId: 'user-current',
+      userId: currentUser?.id || 'user-current',
       categoryId: selectedCategory.id,
       categoryName: selectedCategory.name,
       date: workoutDate,
@@ -206,7 +221,10 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   // Filter exercises relevant to selected category or global exercises
   const categoryExercises = selectedCategory
     ? localExercises.filter(
-        (ex) => !ex.categoryId || ex.categoryId === selectedCategory.id
+        (ex) =>
+          !ex.categoryId ||
+          ex.categoryId === selectedCategory.id ||
+          ex.categoryId === selectedCategory.name
       )
     : localExercises;
 
@@ -346,7 +364,10 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                 {categories.map((cat) => {
                   const isSelected = selectedCategory?.id === cat.id;
                   const catExCount = localExercises.filter(
-                    (ex) => !ex.categoryId || ex.categoryId === cat.id
+                    (ex) =>
+                      !ex.categoryId ||
+                      ex.categoryId === cat.id ||
+                      ex.categoryId === cat.name
                   ).length;
 
                   return (
@@ -435,7 +456,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Dumbbell className="w-3.5 h-3.5 text-emerald-500" />
-                    Select Exercise to Add Sets ({categoryExercises.length})
+                    SELECT EXERCISE TO ADD SETS ({categoryExercises.length})
                   </label>
                   <button
                     onClick={() => setShowAddExercise(!showAddExercise)}
@@ -515,7 +536,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
               {/* Logged Sets List */}
               <div className="space-y-4 pt-2 border-t border-zinc-200 dark:border-zinc-800">
                 <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                  Logged Sets ({sets.length})
+                  LOGGED SETS ({sets.length})
                 </h3>
 
                 {sets.length === 0 ? (

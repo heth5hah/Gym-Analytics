@@ -259,6 +259,7 @@ export default function Home() {
           categories={categories}
           exercises={exercises}
           preferredUnit={preferredUnit}
+          currentUser={currentUser}
           onClose={() => setIsWorkoutModalOpen(false)}
           onSaveWorkout={handleSaveWorkout}
           onRefreshCategories={() => refreshUserData(currentUser?.id)}
